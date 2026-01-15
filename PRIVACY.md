@@ -33,3 +33,8 @@ The Plugin sends your data to the **Endpoint you configure**. Your Endpoint (Hig
 - Plugin configuration/credentials are managed and stored by **Dify** as part of plugin/model configuration.
 - Requests are sent over HTTP(S) to your configured Endpoint.
 
+### Cloud infrastructure (Alibaba Cloud)
+
+Our commercial AI gateway is deployed on **Alibaba Cloud** infrastructure. For details on how Alibaba Cloud processes personal data, please refer to the **Alibaba Cloud International Website Privacy Policy**:
+- https://www.alibabacloud.com/help/en/legal/latest/alibaba-cloud-international-website-privacy-policy
+
