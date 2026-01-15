@@ -1,0 +1,258 @@
+provider: higress
+label:
+  en_US: "Higress"
+description:
+  en_US: "Higress AI Gateway."
+  zh_Hans: "Higress AI 网关。"
+icon_small:
+  en_US: "icon.png"
+icon_large:
+  en_US: "icon.png"
+background: "#E5E7EB"
+help:
+  title:
+    en_US: "Get your AI Gateway address from higress console"
+    zh_Hans: "从 Higress 网关控制台获取 AI 网关地址"
+  url:
+    en_US: "https://apig.console.aliyun.com"
+supported_model_types:
+  - llm
+  - rerank
+  - text-embedding
+configurate_methods:
+  - predefined-model
+  - customizable-model
+model_credential_schema:
+  model:
+    label:
+      en_US: Model Name
+      zh_Hans: 模型名称
+    placeholder:
+      en_US: Enter your model name
+      zh_Hans: 输入模型名称
+  credential_form_schemas:
+    # ========== LLM 使用场景（文本生成、图片生成）==========
+    - variable: llm_usage_scenario
+      show_on:
+        - variable: __model_type
+          value: llm
+      label:
+        zh_Hans: 使用场景
+        en_US: Usage Scenario
+      type: select
+      required: true
+      default: text_generation
+      placeholder:
+        zh_Hans: 选择使用场景
+        en_US: Select usage scenario
+      options:
+        - value: text_generation
+          label:
+            en_US: Text Generation
+            zh_Hans: 文本生成
+        - value: image_generation
+          label:
+            en_US: Image Generation
+            zh_Hans: 图片生成
+    - variable: text_model_protocol
+      show_on:
+        - variable: __model_type
+          value: llm
+        - variable: llm_usage_scenario
+          value: text_generation
+      label:
+        zh_Hans: 模型协议
+        en_US: Model Protocol
+      type: select
+      required: true
+      default: openai_compatible
+      placeholder:
+        zh_Hans: 选择模型协议
+        en_US: Select model protocol
+      options:
+        - value: openai_compatible
+          label:
+            en_US: OpenAI Compatible
+            zh_Hans: OpenAI兼容
+    - variable: image_model_protocol
+      show_on:
+        - variable: __model_type
+          value: llm
+        - variable: llm_usage_scenario
+          value: image_generation
+      label:
+        zh_Hans: 模型协议
+        en_US: Model Protocol
+      type: select
+      required: true
+      default: dashscope_image_generation
+      placeholder:
+        zh_Hans: 选择模型协议
+        en_US: Select model protocol
+      options:
+        - value: dashscope_image_generation
+          label:
+            en_US: Alibaba Cloud DashScope Image Generation
+            zh_Hans: 阿里云百炼图片生成
+    # ========== Text Embedding 使用场景（向量嵌入）==========
+    - variable: embedding_usage_scenario
+      show_on:
+        - variable: __model_type
+          value: text-embedding
+      label:
+        zh_Hans: 使用场景
+        en_US: Usage Scenario
+      type: select
+      required: true
+      default: embedding
+      placeholder:
+        zh_Hans: 选择使用场景
+        en_US: Select usage scenario
+      options:
+        - value: embedding
+          label:
+            en_US: Embedding
+            zh_Hans: 向量嵌入
+    - variable: embedding_model_protocol
+      show_on:
+        - variable: __model_type
+          value: text-embedding
+        - variable: embedding_usage_scenario
+          value: embedding
+      label:
+        zh_Hans: 模型协议
+        en_US: Model Protocol
+      type: select
+      required: true
+      default: openai_compatible
+      placeholder:
+        zh_Hans: 选择模型协议
+        en_US: Select model protocol
+      options:
+        - value: openai_compatible
+          label:
+            en_US: OpenAI Compatible
+            zh_Hans: OpenAI兼容
+    # ========== Rerank 使用场景（文本排序）==========
+    - variable: rerank_usage_scenario
+      show_on:
+        - variable: __model_type
+          value: rerank
+      label:
+        zh_Hans: 使用场景
+        en_US: Usage Scenario
+      type: select
+      required: true
+      default: rerank
+      placeholder:
+        zh_Hans: 选择使用场景
+        en_US: Select usage scenario
+      options:
+        - value: rerank
+          label:
+            en_US: Rerank
+            zh_Hans: 文本排序
+    - variable: rerank_model_protocol
+      show_on:
+        - variable: __model_type
+          value: rerank
+        - variable: rerank_usage_scenario
+          value: rerank
+      label:
+        zh_Hans: 模型协议
+        en_US: Model Protocol
+      type: select
+      required: true
+      default: dashscope_rerank
+      placeholder:
+        zh_Hans: 选择模型协议
+        en_US: Select model protocol
+      options:
+        - value: dashscope_rerank
+          label:
+            en_US: Alibaba Cloud DashScope Text Rerank
+            zh_Hans: 阿里云百炼文本排序
+    - variable: endpoint_url
+      label:
+        zh_Hans: Higress AI 网关路由
+        en_US: Higress AI Gateway Route
+      type: text-input
+      required: true
+      placeholder:
+        zh_Hans: Higress AI 网关路由，例如 http://env-xxxx.alicloudapi.com/{自定义前缀}
+        en_US: Higress AI Gateway Route, e.g. http://env-xxxx.alicloudapi.com/{custom-prefix}
+    - variable: consumer_auth_mode
+      label:
+        zh_Hans: 消费者鉴权策略
+        en_US: Consumer Auth Strategy
+      type: select
+      required: false
+      default: disabled
+      placeholder:
+        zh_Hans: 选择消费者鉴权策略
+        en_US: Select consumer auth strategy
+      options:
+        - value: disabled
+          label:
+            en_US: Disabled
+            zh_Hans: 不开启
+        - value: api_key
+          label:
+            en_US: API Key
+            zh_Hans: API Key
+        - value: hmac
+          label:
+            en_US: AK/SK (HMAC)
+            zh_Hans: AK/SK (HMAC)
+    - variable: api_key
+      show_on:
+        - variable: consumer_auth_mode
+          value: api_key
+      label:
+        zh_Hans: API Key
+        en_US: API Key
+      type: secret-input
+      required: true
+      placeholder:
+        zh_Hans: 输入 API Key, 该信息会加密存储
+        en_US: Enter API Key, which will be stored in encrypted form
+    - variable: hmac_key
+      show_on:
+        - variable: consumer_auth_mode
+          value: hmac
+      label:
+        zh_Hans: Access Key (Key)
+        en_US: Access Key (Key)
+      type: secret-input
+      required: true
+      placeholder:
+        zh_Hans: 输入 Access Key, 用于生成 HMAC 签名, 该信息会加密存储
+        en_US: Enter Access Key for HMAC signature generation, which will be stored in encrypted form
+    - variable: hmac_secret
+      show_on:
+        - variable: consumer_auth_mode
+          value: hmac
+      label:
+        zh_Hans: Secret Key (Secret)
+        en_US: Secret Key (Secret)
+      type: secret-input
+      required: true
+      placeholder:
+        zh_Hans: 输入 Secret Key, 用于生成 HMAC 签名, 该信息会加密存储
+        en_US: Enter Secret Key for HMAC signature generation, which will be stored in encrypted form
+    - variable: gateway_model_name
+      label:
+        zh_Hans: 透传模型名称
+        en_US: Passthrough Model Name
+      type: text-input
+      required: false
+      placeholder:
+        zh_Hans: 当 Model API 选择透传时，该字段必填，例如 qwen-max
+        en_US: Required when Model API is set to passthrough, e.g. qwen-max
+extra:
+  python:
+    provider_source: provider/higress.py
+    model_sources:
+      - "models/llm/llm.py"
+      - "models/rerank/rerank.py"
+      - "models/text_embedding/text_embedding.py"

@@ -1,0 +1,45 @@
+version: 0.0.1
+type: plugin
+author: "higress"
+name: higress
+label:
+  en_US: higress
+  ja_JP: higress
+  zh_Hans: higress
+  pt_BR: higress
+description:
+  en_US: Higress AI Gateway model proxy. Access a wide range of model providers or self-hosted inference services via the Higress AI Gateway Model API.
+  ja_JP: Higress AI ゲートウェイのモデルプロキシ。Higress AI ゲートウェイの Model API にアクセスして、豊富なモデルプロバイダーや自社ホストの推論サービスを利用できます。
+  zh_Hans: Higress AI 网关模型代理, 通过访问 Higress AI 网关的 Model API 来访问丰富的模型供应商或自建模型推理服务
+  pt_BR: Proxy de modelos do Higress AI Gateway. Acesse diversos provedores de modelos ou serviços de inferência auto-hospedados via a Model API do Higress AI Gateway.
+icon: icon.png
+resource:
+  memory: 268435456
+  permission:
+    model:
+      enabled: true
+      llm: true
+      text_embedding: true
+      rerank: true
+      tts: true
+      speech2text: true
+      moderation: true
+    storage:
+      enabled: true
+      size: 1048576
+plugins:
+  models:
+    - provider/higress.yaml
+meta:
+  version: 0.0.1
+  arch:
+    - amd64
+    - arm64
+  runner:
+    language: python
+    version: "3.12"
+    entrypoint: main
+  minimum_dify_version: null
+created_at: 2025-12-19T17:15:24.894073+08:00
+privacy: PRIVACY.md
+verified: false
