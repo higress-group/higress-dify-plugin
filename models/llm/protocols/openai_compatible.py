@@ -128,7 +128,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
             # prepare the payload for a simple ping to the model
             # Use gateway_model_name if provided, otherwise use the original model name
             request_model = credentials.get("gateway_model_name") or model
-            data = {"model": request_model, "max_tokens": 5}
+            data = {"model": request_model}
             
             mode = get_model_mode(credentials)
             completion_type = LLMMode.value_of(mode)
@@ -164,7 +164,6 @@ class OpenAICompatibleProtocol(BaseProtocol):
             stream_mode_auth = credentials.get("stream_mode_auth", "use")
             if stream_mode_auth == "use":
                 data["stream"] = True
-                data["max_tokens"] = 10
                 response = requests.post(
                     endpoint_url, 
                     headers=headers, 
@@ -281,7 +280,10 @@ class OpenAICompatibleProtocol(BaseProtocol):
 
         # Use gateway_model_name if provided, otherwise use the original model name
         request_model = credentials.get("gateway_model_name") or model
-        data = {"model": request_model, "stream": stream, **model_parameters}
+        
+        # Remove max_tokens from model_parameters to prevent it from being passed to the API
+        filtered_model_parameters = {k: v for k, v in model_parameters.items() if k != "max_tokens" and k != "max_completion_tokens"}
+        data = {"model": request_model, "stream": stream, **filtered_model_parameters}
 
         # Get completion type and build endpoint URL using our custom logic
         mode = get_model_mode(credentials)

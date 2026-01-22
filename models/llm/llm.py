@@ -245,18 +245,6 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                     min=-2,
                     max=2,
                 ),
-                ParameterRule(
-                    name=DefaultParameterName.MAX_TOKENS.value,
-                    label=I18nObject(en_US="Max Tokens", zh_Hans="最大标记"),
-                    help=I18nObject(
-                        en_US="Maximum length of tokens for the model response.",
-                        zh_Hans="模型回答的tokens的最大长度。",
-                    ),
-                    type=ParameterType.INT,
-                    default=512,
-                    min=1,
-                    max=int(credentials.get("max_tokens_to_sample", 4096)),
-                ),
             ],
             pricing=PriceConfig(
                 input=Decimal(credentials.get("input_price", 0)),
