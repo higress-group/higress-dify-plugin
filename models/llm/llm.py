@@ -185,7 +185,6 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
             fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
             features=features,
             model_properties={
-                ModelPropertyKey.CONTEXT_SIZE: int(credentials.get("context_size", "4096")),
                 ModelPropertyKey.MODE: mode,
             },
             parameter_rules=[
