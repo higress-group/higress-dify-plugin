@@ -53,12 +53,12 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
         """
         protocol = get_model_protocol(credentials)
         handler = self._protocol_handlers.get(protocol)
-        
+
         if not handler:
             raise CredentialsValidateFailedError(
                 f"Unsupported model protocol: {protocol}"
             )
-        
+
         return handler
 
     def _get_callbacks(self) -> dict:
@@ -125,7 +125,7 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
         """
         handler = self._get_protocol_handler(credentials)
         callbacks = self._get_callbacks()
-        
+
         return handler.get_num_tokens(
             model=model,
             credentials=credentials,
@@ -159,16 +159,17 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
         try:
             features = []
 
+            # tools support, default no_call
             function_calling_type = credentials.get("function_calling_type", "no_call")
             if function_calling_type == "function_call":
                 features.append(ModelFeature.TOOL_CALL)
             elif function_calling_type == "tool_call":
                 features.append(ModelFeature.MULTI_TOOL_CALL)
-
+            # tools stream, default supported
             stream_function_calling = credentials.get("stream_function_calling", "supported")
             if stream_function_calling == "supported":
                 features.append(ModelFeature.STREAM_TOOL_CALL)
-
+            # vision support
             vision_support = credentials.get("vision_support", "not_support")
             if vision_support == "support":
                 features.append(ModelFeature.VISION)
@@ -179,78 +180,100 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                 mode = "chat"
 
             entity = AIModelEntity(
-            model=model,
-            label=I18nObject(en_US=model),
-            model_type=ModelType.LLM,
-            fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
-            features=features,
-            model_properties={
-                ModelPropertyKey.MODE: mode,
-            },
-            parameter_rules=[
-                ParameterRule(
-                    name=DefaultParameterName.TEMPERATURE.value,
-                    label=I18nObject(en_US="Temperature", zh_Hans="温度"),
-                    help=I18nObject(
-                        en_US="Kernel sampling threshold. Used to determine the randomness of the results."
-                        "The higher the value, the stronger the randomness."
-                        "The higher the possibility of getting different answers to the same question.",
-                        zh_Hans="核采样阈值。用于决定结果随机性，取值越高随机性越强即相同的问题得到的不同答案的可能性越高。",
+                model=model,
+                label=I18nObject(en_US=model),
+                model_type=ModelType.LLM,
+                fetch_from=FetchFrom.CUSTOMIZABLE_MODEL,
+                features=features,
+                model_properties={  # model_properties will be shown on model list
+                    ModelPropertyKey.MODE: mode,
+                },
+                parameter_rules=[
+                    ParameterRule(
+                        name=DefaultParameterName.TEMPERATURE.value,
+                        use_template=DefaultParameterName.TEMPERATURE.value,
+                        label=I18nObject(en_US="Temperature", zh_Hans="温度"),
+                        help=I18nObject(
+                            en_US="Used to control the degree of randomness and diversity. Specifically, the temperature value controls the degree to which the probability distribution of each candidate word is smoothed when generating text. A higher temperature value will reduce the peak value of the probability distribution, allowing more low-probability words to be selected, and the generated results will be more diverse; while a lower temperature value will enhance the peak value of the probability distribution, making it easier for high-probability words to be selected, the generated results are more certain.",
+                            zh_Hans="用于控制随机性和多样性的程度。具体来说，temperature值控制了生成文本时对每个候选词的概率分布进行平滑的程度。较高的temperature值会降低概率分布的峰值，使得更多的低概率词被选择，生成结果更加多样化；而较低的temperature值则会增强概率分布的峰值，使得高概率词更容易被选择，生成结果更加确定。",
+                        ),
+                        type=ParameterType.FLOAT,
+                        default=float(credentials.get("temperature", 0.7)),
+                        min=0.0,
+                        max=2.0,
+                        precision=2,
                     ),
-                    type=ParameterType.FLOAT,
-                    default=float(credentials.get("temperature", 0.7)),
-                    min=0,
-                    max=2,
-                    precision=2,
-                ),
-                ParameterRule(
-                    name=DefaultParameterName.TOP_P.value,
-                    label=I18nObject(en_US="Top P", zh_Hans="Top P"),
-                    help=I18nObject(
-                        en_US="The probability threshold of the nucleus sampling method during the generation process."
-                        "The larger the value is, the higher the randomness of generation will be."
-                        "The smaller the value is, the higher the certainty of generation will be.",
-                        zh_Hans="生成过程中核采样方法概率阈值。取值越大，生成的随机性越高；取值越小，生成的确定性越高。",
+                    ParameterRule(
+                        name=DefaultParameterName.TOP_P.value,
+                        use_template=DefaultParameterName.TOP_P.value,
+                        label=I18nObject(en_US="Top P", zh_Hans="Top P"),
+                        help=I18nObject(
+                            en_US="The probability threshold of the kernel sampling method during the generation process. For example, when the value is 0.8, only the smallest set of the most likely tokens with a sum of probabilities greater than or equal to 0.8 is retained as the candidate set. The value range is (0,1.0). The larger the value, the higher the randomness generated; the lower the value, the higher the certainty generated.",
+                            zh_Hans="生成过程中核采样方法概率阈值，例如，取值为0.8时，仅保留概率加起来大于等于0.8的最可能token的最小集合作为候选集。取值范围为（0,1.0)，取值越大，生成的随机性越高；取值越低，生成的确定性越高。",
+                        ),
+                        type=ParameterType.FLOAT,
+                        default=float(credentials.get("top_p", 0.8)),
+                        min=0.1,
+                        max=0.9,
+                        precision=2,
                     ),
-                    type=ParameterType.FLOAT,
-                    default=float(credentials.get("top_p", 1)),
-                    min=0,
-                    max=1,
-                    precision=2,
-                ),
-                ParameterRule(
-                    name=DefaultParameterName.FREQUENCY_PENALTY.value,
-                    label=I18nObject(en_US="Frequency Penalty", zh_Hans="频率惩罚"),
-                    help=I18nObject(
-                        en_US="For controlling the repetition rate of words used by the model."
-                        "Increasing this can reduce the repetition of the same words in the model's output.",
-                        zh_Hans="用于控制模型已使用字词的重复率。 提高此项可以降低模型在输出中重复相同字词的重复度。",
+                    ParameterRule(
+                        name=DefaultParameterName.TOP_K.value,
+                        use_template=DefaultParameterName.TOP_K.value,
+                        label=I18nObject(en_US="Top k", zh_Hans="取样数量"),
+                        help=I18nObject(
+                            en_US="The size of the sample candidate set when generated. For example, when the value is 50, only the 50 highest-scoring tokens in a single generation form a randomly sampled candidate set. The larger the value, the higher the randomness generated; the smaller the value, the higher the certainty generated.",
+                            zh_Hans="生成时，采样候选集的大小。例如，取值为50时，仅将单次生成中得分最高的50个token组成随机采样的候选集。取值越大，生成的随机性越高；取值越小，生成的确定性越高。",
+                        ),
+                        type=ParameterType.INT,
+                        default=int(credentials.get("top_k", 50)),
+                        min=0,
+                        max=99,
                     ),
-                    type=ParameterType.FLOAT,
-                    default=float(credentials.get("frequency_penalty", 0)),
-                    min=-2,
-                    max=2,
-                ),
-                ParameterRule(
-                    name=DefaultParameterName.PRESENCE_PENALTY.value,
-                    label=I18nObject(en_US="Presence Penalty", zh_Hans="存在惩罚"),
-                    help=I18nObject(
-                        en_US="Used to control the repetition rate when generating models."
-                        "Increasing this can reduce the repetition rate of model generation.",
-                        zh_Hans="用于控制模型生成时的重复度。提高此项可以降低模型生成的重复度。",
+                    ParameterRule(
+                        name="seed",
+                        label=I18nObject(en_US="Random seed", zh_Hans="随机种子"),
+                        help=I18nObject(
+                            en_US="The random number seed used when generating, the user controls the randomness of the content generated by the model. Supports unsigned 64-bit integers, default value is 1234. When using seed, the model will try its best to generate the same or similar results, but there is currently no guarantee that the results will be exactly the same every time.",
+                            zh_Hans="生成时使用的随机数种子，用户控制模型生成内容的随机性。支持无符号64位整数，默认值为 1234。在使用seed时，模型将尽可能生成相同或相似的结果，但目前不保证每次生成的结果完全相同。",
+                        ),
+                        type=ParameterType.INT,
+                        default=int(credentials.get("seed", 1234)),
+                        required=False,
                     ),
-                    type=ParameterType.FLOAT,
-                    default=float(credentials.get("presence_penalty", 0)),
-                    min=-2,
-                    max=2,
+                    ParameterRule(
+                        name=DefaultParameterName.FREQUENCY_PENALTY.value,
+                        label=I18nObject(en_US="Frequency Penalty", zh_Hans="频率惩罚"),
+                        help=I18nObject(
+                            en_US="For controlling the repetition rate of words used by the model."
+                                  "Increasing this can reduce the repetition of the same words in the model's output.",
+                            zh_Hans="用于控制模型已使用字词的重复率。 提高此项可以降低模型在输出中重复相同字词的重复度。",
+                        ),
+                        type=ParameterType.FLOAT,
+                        default=float(credentials.get("frequency_penalty", 0)),
+                        min=-2,
+                        max=2,
+                    ),
+                    ParameterRule(
+                        name=DefaultParameterName.PRESENCE_PENALTY.value,
+                        label=I18nObject(en_US="Presence Penalty", zh_Hans="存在惩罚"),
+                        help=I18nObject(
+                            en_US="Used to control the repetition rate when generating models."
+                                  "Increasing this can reduce the repetition rate of model generation.",
+                            zh_Hans="用于控制模型生成时的重复度。提高此项可以降低模型生成的重复度。",
+                        ),
+                        type=ParameterType.FLOAT,
+                        default=float(credentials.get("presence_penalty", 0)),
+                        min=-2,
+                        max=2,
+                    ),
+                ],
+                pricing=PriceConfig(
+                    input=Decimal(credentials.get("input_price", 0)),
+                    output=Decimal(credentials.get("output_price", 0)),
+                    unit=Decimal(credentials.get("unit", 0)),
+                    currency=credentials.get("currency", "USD"),
                 ),
-            ],
-            pricing=PriceConfig(
-                input=Decimal(credentials.get("input_price", 0)),
-                output=Decimal(credentials.get("output_price", 0)),
-                unit=Decimal(credentials.get("unit", 0)),
-                currency=credentials.get("currency", "USD"),
-            ),
             )
 
             if mode == "chat":
@@ -262,17 +285,6 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
 
             structured_output_support = credentials.get("structured_output_support", "not_supported")
             if structured_output_support == "supported":
-                # ----
-                # The following section should be added after the new version of `dify-plugin-sdks`
-                # is released.
-                # Related Commit:
-                # https://github.com/langgenius/dify-plugin-sdks/commit/0690573a879caf43f92494bf411f45a1835d96f6
-                # ----
-                # try:
-                #     entity.features.index(ModelFeature.STRUCTURED_OUTPUT)
-                # except ValueError:
-                #     entity.features.append(ModelFeature.STRUCTURED_OUTPUT)
-
                 entity.parameter_rules.append(
                     ParameterRule(
                         name=DefaultParameterName.RESPONSE_FORMAT.value,
@@ -311,33 +323,8 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                     en_US=credentials["display_name"], zh_Hans=credentials["display_name"]
                 )
 
-            # Configure thinking mode parameter based on model support
-            agent_thought_support = credentials.get("agent_thought_support", "not_supported")
-
-            # Add AGENT_THOUGHT feature if thinking mode is supported (either mode)
-            if hasattr(ModelFeature, 'AGENT_THOUGHT'):
-                if agent_thought_support in ["supported",
-                                             "only_thinking_supported"] and ModelFeature.AGENT_THOUGHT not in entity.features:
-                    entity.features.append(ModelFeature.AGENT_THOUGHT)
-
-            # Only add the enable_thinking parameter if the model supports both modes
-            # If only_thinking_supported, the parameter is not needed (forced behavior)
-            if agent_thought_support == "supported":
-                entity.parameter_rules.append(
-                    ParameterRule(
-                        name="enable_thinking",
-                        label=I18nObject(en_US="Thinking mode", zh_Hans="思考模式"),
-                        help=I18nObject(
-                            en_US="Whether to enable thinking mode, applicable to various thinking mode models deployed on reasoning frameworks such as vLLM and SGLang, for example Qwen3.",
-                            zh_Hans="是否开启思考模式，适用于vLLM和SGLang等推理框架部署的多种思考模式模型，例如Qwen3。",
-                        ),
-                        type=ParameterType.BOOLEAN,
-                        required=False,
-                    )
-                )
-
             return entity
-        
+
         except Exception as e:
             logger.exception(f"Error in get_customizable_model_schema: {e}")
             raise
@@ -367,7 +354,7 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
         """
         handler = self._get_protocol_handler(credentials)
         callbacks = self._get_callbacks()
-        
+
         return handler.generate(
             model=model,
             credentials=credentials,
