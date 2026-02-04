@@ -300,13 +300,6 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                 ),
             )
 
-            if mode == "chat":
-                entity.model_properties[ModelPropertyKey.MODE] = LLMMode.CHAT.value
-            elif mode == "completion":
-                entity.model_properties[ModelPropertyKey.MODE] = LLMMode.COMPLETION.value
-            else:
-                raise ValueError(f"Unknown completion mode: {mode}")
-
             structured_output_support = credentials.get("structured_output_support", "not_supported")
             if structured_output_support == "supported":
                 entity.parameter_rules.append(
@@ -341,6 +334,13 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                         use_template=DefaultParameterName.JSON_SCHEMA.value,
                     )
                 )
+
+            if mode == "chat":
+                entity.model_properties[ModelPropertyKey.MODE] = LLMMode.CHAT.value
+            elif mode == "completion":
+                entity.model_properties[ModelPropertyKey.MODE] = LLMMode.COMPLETION.value
+            else:
+                raise ValueError(f"Unknown completion mode: {mode}")
 
             if "display_name" in credentials and credentials["display_name"] != "":
                 entity.label = I18nObject(
