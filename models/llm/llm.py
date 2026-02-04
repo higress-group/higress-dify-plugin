@@ -372,6 +372,21 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                     )
                 )
 
+            if agent_thought_support in ["supported", "only_thinking_supported"]:
+                entity.parameter_rules.append(
+                    ParameterRule(
+                        name="reasoning_effort",
+                        label=I18nObject(en_US="Reasoning effort", zh_Hans="推理工作"),
+                        help=I18nObject(
+                            en_US="Constrains effort on reasoning for reasoning models.",
+                            zh_Hans="限制推理模型的推理工作。",
+                        ),
+                        type=ParameterType.STRING,
+                        options=["low", "medium", "high"],
+                        required=False,
+                    )
+                )
+
             return entity
 
         except Exception as e:
