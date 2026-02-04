@@ -291,6 +291,18 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                         default=int(credentials.get("seed", 1234)),
                         required=False,
                     ),
+                    ParameterRule(
+                        name="enable_thinking",
+                        label=I18nObject(en_US="Thinking mode", zh_Hans="思考模式"),
+                        help=I18nObject(
+                            en_US="Whether to enable thinking mode. When enabled, the model supports and uses "
+                                  "thinking; when disabled, thinking is not supported or is turned off.",
+                            zh_Hans="是否开启思考模式。开启表示模型支持并开启思考模式，关闭表示模型不支持或关闭思考模式。",
+                        ),
+                        type=ParameterType.BOOLEAN,
+                        default=bool(credentials.get("enable_thinking", False)),
+                        required=False,
+                    ),
                 ],
                 pricing=PriceConfig(
                     input=Decimal(credentials.get("input_price", 0)),
