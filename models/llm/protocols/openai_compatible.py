@@ -2,12 +2,14 @@
 OpenAI Compatible protocol implementation.
 """
 
+import re
 import codecs
 import json
 import logging
 import uuid
+from contextlib import suppress
 from collections.abc import Generator
-from typing import Optional, Union, cast, Any
+from typing import Optional, Union, cast, Any, List
 
 import requests
 from pydantic import TypeAdapter, ValidationError
@@ -30,8 +32,8 @@ from dify_plugin.errors.model import CredentialsValidateFailedError, InvokeError
 from models.llm.protocols.base import BaseProtocol
 from models.llm.utils import build_endpoint_url, get_model_mode
 from models.utils import (
-    apply_consumer_auth, 
-    apply_consumer_auth_with_context, 
+    apply_consumer_auth,
+    apply_consumer_auth_with_context,
     AuthContext,
     consumer_auth_manager,
 )
@@ -44,8 +46,8 @@ def _gen_tool_call_id() -> str:
 
 
 def _increase_tool_call(
-    new_tool_calls: list[AssistantPromptMessage.ToolCall], 
-    existing_tools_calls: list[AssistantPromptMessage.ToolCall]
+        new_tool_calls: list[AssistantPromptMessage.ToolCall],
+        existing_tools_calls: list[AssistantPromptMessage.ToolCall]
 ):
     """
     Merge incremental tool call updates into existing tool calls.
@@ -53,6 +55,7 @@ def _increase_tool_call(
     :param new_tool_calls: List of new tool call deltas to be merged.
     :param existing_tools_calls: List of existing tool calls to be modified IN-PLACE.
     """
+
     def get_tool_call(tool_call_id: str):
         """
         Get or create a tool call by ID
@@ -62,9 +65,9 @@ def _increase_tool_call(
         """
         if not tool_call_id:
             return existing_tools_calls[-1]
-        
+
         _tool_call = next(
-            (_tool_call for _tool_call in existing_tools_calls if _tool_call.id == tool_call_id), 
+            (_tool_call for _tool_call in existing_tools_calls if _tool_call.id == tool_call_id),
             None
         )
         if _tool_call is None:
@@ -74,17 +77,17 @@ def _increase_tool_call(
                 function=AssistantPromptMessage.ToolCall.ToolCallFunction(name="", arguments=""),
             )
             existing_tools_calls.append(_tool_call)
-        
+
         return _tool_call
 
     for new_tool_call in new_tool_calls:
         # generate ID for tool calls with function name but no ID to track them
         if new_tool_call.function.name and not new_tool_call.id:
             new_tool_call.id = _gen_tool_call_id()
-        
+
         # get tool call
         tool_call = get_tool_call(new_tool_call.id)
-        
+
         # update tool call
         if new_tool_call.id:
             tool_call.id = new_tool_call.id
@@ -101,16 +104,18 @@ class OpenAICompatibleProtocol(BaseProtocol):
     OpenAI Compatible API protocol implementation.
     Handles validation and API calls for OpenAI-compatible endpoints.
     """
-    
+
     PROTOCOL_NAME = "openai_compatible"
-    
+
+    _THINK_PATTERN = re.compile(r"^<think>.*?</think>\s*", re.DOTALL)
+
     # API paths for different modes
     CHAT_COMPLETIONS_PATH = "v1/chat/completions"
     COMPLETIONS_PATH = "v1/completions"
-    
+
     def get_protocol_name(self) -> str:
         return self.PROTOCOL_NAME
-    
+
     def validate_credentials(self, model: str, credentials: dict) -> None:
         """
         Validate credentials by sending a ping request to the OpenAI-compatible API.
@@ -124,15 +129,15 @@ class OpenAICompatibleProtocol(BaseProtocol):
                 "Content-Type": "application/json",
                 "Accept": "*/*",  # Explicitly set Accept to avoid HMAC signature issues with empty value
             }
-            
+
             # prepare the payload for a simple ping to the model
             # Use gateway_model_name if provided, otherwise use the original model name
             request_model = credentials.get("gateway_model_name") or model
             data = {"model": request_model}
-            
+
             mode = get_model_mode(credentials)
             completion_type = LLMMode.value_of(mode)
-            
+
             if completion_type is LLMMode.CHAT:
                 data["messages"] = [{"role": "user", "content": "ping"}]
                 endpoint_url = build_endpoint_url(credentials, self.CHAT_COMPLETIONS_PATH)
@@ -143,7 +148,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
                 raise CredentialsValidateFailedError(
                     f"Unsupported completion mode: {mode}"
                 )
-            
+
             # Apply consumer authentication
             # Use full context for auth methods that require request body (e.g., HMAC)
             if consumer_auth_manager.requires_body(credentials):
@@ -159,16 +164,16 @@ class OpenAICompatibleProtocol(BaseProtocol):
             else:
                 # Simple auth (API Key) doesn't need request body
                 headers = apply_consumer_auth(headers, credentials)
-            
+
             # ADD stream validate_credentials
             stream_mode_auth = credentials.get("stream_mode_auth", "use")
             if stream_mode_auth == "use":
                 data["stream"] = True
                 response = requests.post(
-                    endpoint_url, 
-                    headers=headers, 
-                    json=data, 
-                    timeout=(10, 300), 
+                    endpoint_url,
+                    headers=headers,
+                    json=data,
+                    timeout=(10, 300),
                     stream=True
                 )
                 if response.status_code != 200:
@@ -177,45 +182,45 @@ class OpenAICompatibleProtocol(BaseProtocol):
                         f"and response body {response.text}"
                     )
                 return
-            
+
             # send a post request to validate the credentials
             response = requests.post(endpoint_url, headers=headers, json=data, timeout=(10, 300))
-            
+
             if response.status_code != 200:
                 raise CredentialsValidateFailedError(
                     f"Credentials validation failed with status code {response.status_code} "
                     f"and response body {response.text}"
                 )
-            
+
             try:
                 json_result = response.json()
             except json.JSONDecodeError:
                 raise CredentialsValidateFailedError(
                     f"Credentials validation failed: JSON decode error, response body {response.text}"
                 ) from None
-            
+
             if completion_type is LLMMode.CHAT and json_result.get("object", "") == "":
                 json_result["object"] = "chat.completion"
             elif completion_type is LLMMode.COMPLETION and json_result.get("object", "") == "":
                 json_result["object"] = "text_completion"
-            
+
             if completion_type is LLMMode.CHAT and (
-                "object" not in json_result or json_result["object"] != "chat.completion"
+                    "object" not in json_result or json_result["object"] != "chat.completion"
             ):
                 raise CredentialsValidateFailedError(
                     f"Credentials validation failed: invalid response object, "
                     f"must be 'chat.completion', response body {response.text}"
                 )
             elif completion_type is LLMMode.COMPLETION and (
-                "object" not in json_result or json_result["object"] != "text_completion"
+                    "object" not in json_result or json_result["object"] != "text_completion"
             ):
                 raise CredentialsValidateFailedError(
                     f"Credentials validation failed: invalid response object, "
                     f"must be 'text_completion', response body {response.text}"
                 )
-            
+
             logger.info(f"LLM credentials validated successfully for model: {model}")
-                
+
         except CredentialsValidateFailedError:
             raise
         except Exception as ex:
@@ -223,17 +228,88 @@ class OpenAICompatibleProtocol(BaseProtocol):
                 f"An error occurred during credentials validation: {ex!s}"
             ) from ex
 
+    @classmethod
+    def _drop_analyze_channel(self, prompt_messages: List[PromptMessage]) -> None:
+        """
+        Remove thinking content from assistant messages for better performance.
+
+        Uses early exit and pre-compiled regex to minimize overhead.
+        Args:
+            prompt_messages:
+
+        Returns:
+
+        """
+        for p in prompt_messages:
+            # Early exit conditions
+            if not isinstance(p, AssistantPromptMessage):
+                continue
+            if not isinstance(p.content, str):
+                continue
+            # Quick check to avoid regex if not needed
+            if not p.content.startswith("<think>"):
+                continue
+
+            # Only perform regex substitution when necessary
+            new_content = self._THINK_PATTERN.sub("", p.content, count=1)
+            # Only update if changed
+            if new_content != p.content:
+                p.content = new_content
+
     def generate(
-        self,
-        model: str,
-        credentials: dict,
-        prompt_messages: list[PromptMessage],
-        model_parameters: dict,
-        tools: Optional[list[PromptMessageTool]] = None,
-        stop: Optional[list[str]] = None,
-        stream: bool = True,
-        user: Optional[str] = None,
-        callbacks: Optional[dict] = None,
+            self,
+            model: str,
+            credentials: dict,
+            prompt_messages: list[PromptMessage],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageTool]] = None,
+            stop: Optional[list[str]] = None,
+            stream: bool = True,
+            user: Optional[str] = None,
+            callbacks: Optional[dict] = None,
+    ) -> Union[LLMResult, Generator]:
+
+        # thinking mode preprocess
+        enable_thinking_value = None
+        enable_thinking = model_parameters.pop("enable_thinking", None)
+        if enable_thinking is not None:
+            enable_thinking_value = bool(enable_thinking)
+
+        if enable_thinking_value is not None:
+            chat_template_kwargs = model_parameters.setdefault("chat_template_kwargs", {})
+            # Support vLLM/SGLang format (chat_template_kwargs)
+            chat_template_kwargs["enable_thinking"] = enable_thinking_value
+            chat_template_kwargs["thinking"] = enable_thinking_value
+
+            # Support top-level `enable_thinking` parameter
+            # This allows compatibility API format: {"enable_thinking": False/True}
+            model_parameters["enable_thinking"] = enable_thinking_value
+
+        # Remove thinking content from assistant messages for better performance.
+        with suppress(Exception):
+            self._drop_analyze_channel(prompt_messages)
+
+        result = self._generate(model, credentials, prompt_messages, model_parameters, tools, stop, stream, user)
+
+        if enable_thinking_value is False:
+            if stream:
+                return self._filter_thinking_stream(result)
+            else:
+                return self._filter_thinking_result(result)
+
+        return result
+
+    def _generate(
+            self,
+            model: str,
+            credentials: dict,
+            prompt_messages: list[PromptMessage],
+            model_parameters: dict,
+            tools: Optional[list[PromptMessageTool]] = None,
+            stop: Optional[list[str]] = None,
+            stream: bool = True,
+            user: Optional[str] = None,
+            callbacks: Optional[dict] = None,
     ) -> Union[LLMResult, Generator]:
         """
         Generate LLM response using OpenAI-compatible API.
@@ -250,12 +326,12 @@ class OpenAICompatibleProtocol(BaseProtocol):
         :return: Full response or stream response chunk generator
         """
         callbacks = callbacks or {}
-        
         headers = {
             "Content-Type": "application/json",
+            "Accept-Charset": "utf-8",
             "Accept": "*/*",  # Explicitly set Accept to avoid HMAC signature issues with empty value
         }
-        
+
         extra_headers = credentials.get("extra_headers")
         if extra_headers is not None:
             headers = {**headers, **extra_headers}
@@ -280,9 +356,10 @@ class OpenAICompatibleProtocol(BaseProtocol):
 
         # Use gateway_model_name if provided, otherwise use the original model name
         request_model = credentials.get("gateway_model_name") or model
-        
+
         # Remove max_tokens from model_parameters to prevent it from being passed to the API
-        filtered_model_parameters = {k: v for k, v in model_parameters.items() if k != "max_tokens" and k != "max_completion_tokens"}
+        filtered_model_parameters = {k: v for k, v in model_parameters.items() if
+                                     k != "max_tokens" and k != "max_completion_tokens"}
         data = {"model": request_model, "stream": stream, **filtered_model_parameters}
 
         # Get completion type and build endpoint URL using our custom logic
@@ -340,10 +417,10 @@ class OpenAICompatibleProtocol(BaseProtocol):
             headers = apply_consumer_auth(headers, credentials)
 
         response = requests.post(
-            endpoint_url, 
-            headers=headers, 
-            json=data, 
-            timeout=(10, 300), 
+            endpoint_url,
+            headers=headers,
+            json=data,
+            timeout=(10, 300),
             stream=stream
         )
 
@@ -359,53 +436,53 @@ class OpenAICompatibleProtocol(BaseProtocol):
         return self._handle_generate_response(model, credentials, response, prompt_messages, callbacks)
 
     def _create_final_llm_result_chunk(
-        self,
-        index: int,
-        message: AssistantPromptMessage,
-        finish_reason: str,
-        usage: dict,
-        model: str,
-        prompt_messages: list[PromptMessage],
-        credentials: dict,
-        full_content: str,
-        callbacks: dict,
+            self,
+            index: int,
+            message: AssistantPromptMessage,
+            finish_reason: str,
+            usage: dict,
+            model: str,
+            prompt_messages: list[PromptMessage],
+            credentials: dict,
+            full_content: str,
+            callbacks: dict,
     ) -> LLMResultChunk:
         """
         Create final LLM result chunk with usage information.
         """
         calc_response_usage = callbacks.get("calc_response_usage")
-        
+
         # calculate num tokens
         prompt_tokens = usage and usage.get("prompt_tokens")
         if prompt_tokens is None:
             prompt_tokens = self._num_tokens_from_string(text=prompt_messages[0].content, callbacks=callbacks)
-        
+
         completion_tokens = usage and usage.get("completion_tokens")
         if completion_tokens is None:
             completion_tokens = self._num_tokens_from_string(text=full_content, callbacks=callbacks)
-        
+
         # transform usage
         usage_obj = None
         if calc_response_usage:
             usage_obj = calc_response_usage(model, credentials, prompt_tokens, completion_tokens)
-        
+
         return LLMResultChunk(
             model=model,
             delta=LLMResultChunkDelta(
-                index=index, 
-                message=message, 
-                finish_reason=finish_reason, 
+                index=index,
+                message=message,
+                finish_reason=finish_reason,
                 usage=usage_obj
             ),
         )
 
     def _handle_generate_stream_response(
-        self,
-        model: str,
-        credentials: dict,
-        response: requests.Response,
-        prompt_messages: list[PromptMessage],
-        callbacks: dict,
+            self,
+            model: str,
+            credentials: dict,
+            response: requests.Response,
+            prompt_messages: list[PromptMessage],
+            callbacks: dict,
     ) -> Generator:
         """
         Handle LLM stream response.
@@ -423,11 +500,11 @@ class OpenAICompatibleProtocol(BaseProtocol):
         finish_reason = None
         usage = None
         is_reasoning_started = False
-        
+
         # delimiter for stream response, need unicode_escape
         delimiter = credentials.get("stream_mode_delimiter", "\n\n")
         delimiter = codecs.decode(delimiter, "unicode_escape")
-        
+
         for chunk in response.iter_lines(decode_unicode=True, delimiter=delimiter):
             chunk = chunk.strip()
             if chunk:
@@ -454,15 +531,15 @@ class OpenAICompatibleProtocol(BaseProtocol):
                         callbacks=callbacks,
                     )
                     break
-                
+
                 # handle the error here. for issue #11629
                 if chunk_json.get("error") and chunk_json.get("choices") is None:
                     raise ValueError(chunk_json.get("error"))
-                    
+
                 if chunk_json:  # noqa: SIM102
                     if u := chunk_json.get("usage"):
                         usage = u
-                
+
                 if not chunk_json or len(chunk_json["choices"]) == 0:
                     continue
 
@@ -481,8 +558,8 @@ class OpenAICompatibleProtocol(BaseProtocol):
                     if "tool_calls" in delta and credentials.get("function_calling_type", "no_call") == "tool_call":
                         assistant_message_tool_calls = delta.get("tool_calls", None)
                     elif (
-                        "function_call" in delta
-                        and credentials.get("function_calling_type", "no_call") == "function_call"
+                            "function_call" in delta
+                            and credentials.get("function_calling_type", "no_call") == "function_call"
                     ):
                         assistant_message_tool_calls = [
                             {"id": "tool_call_id", "type": "function", "function": delta.get("function_call", {})}
@@ -542,12 +619,12 @@ class OpenAICompatibleProtocol(BaseProtocol):
         )
 
     def _handle_generate_response(
-        self,
-        model: str,
-        credentials: dict,
-        response: requests.Response,
-        prompt_messages: list[PromptMessage],
-        callbacks: dict,
+            self,
+            model: str,
+            credentials: dict,
+            response: requests.Response,
+            prompt_messages: list[PromptMessage],
+            callbacks: dict,
     ) -> LLMResult:
         """
         Handle non-streaming LLM response.
@@ -563,7 +640,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
         response_content = ""
         tool_calls = None
         function_calling_type = credentials.get("function_calling_type", "no_call")
-        
+
         if completion_type is LLMMode.CHAT:
             response_content = output.get("message", {})["content"]
             if function_calling_type == "tool_call":
@@ -585,7 +662,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
 
         usage = response_json.get("usage")
         calc_response_usage = callbacks.get("calc_response_usage")
-        
+
         if usage:
             # transform usage
             prompt_tokens = usage["prompt_tokens"]
@@ -613,12 +690,12 @@ class OpenAICompatibleProtocol(BaseProtocol):
         return result
 
     def get_num_tokens(
-        self,
-        model: str,
-        credentials: dict,
-        prompt_messages: list[PromptMessage],
-        tools: Optional[list[PromptMessageTool]] = None,
-        callbacks: Optional[dict] = None,
+            self,
+            model: str,
+            credentials: dict,
+            prompt_messages: list[PromptMessage],
+            tools: Optional[list[PromptMessageTool]] = None,
+            callbacks: Optional[dict] = None,
     ) -> int:
         """
         Get number of tokens for given prompt messages.
@@ -638,7 +715,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
         """
         credentials = credentials or {}
         message_dict = {}
-        
+
         if isinstance(message, UserPromptMessage):
             message = cast(UserPromptMessage, message)
             if isinstance(message.content, str):
@@ -704,10 +781,10 @@ class OpenAICompatibleProtocol(BaseProtocol):
         return message_dict
 
     def _num_tokens_from_string(
-        self,
-        text: Union[str, list[PromptMessageContent]],
-        tools: Optional[list[PromptMessageTool]] = None,
-        callbacks: Optional[dict] = None,
+            self,
+            text: Union[str, list[PromptMessageContent]],
+            tools: Optional[list[PromptMessageTool]] = None,
+            callbacks: Optional[dict] = None,
     ) -> int:
         """
         Approximate num tokens for model with gpt2 tokenizer.
@@ -718,7 +795,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
         """
         callbacks = callbacks or {}
         get_num_tokens_by_gpt2 = callbacks.get("get_num_tokens_by_gpt2")
-        
+
         if isinstance(text, str):
             full_text = text
         else:
@@ -738,24 +815,24 @@ class OpenAICompatibleProtocol(BaseProtocol):
         return num_tokens
 
     def _num_tokens_from_messages(
-        self,
-        messages: list[PromptMessage],
-        tools: Optional[list[PromptMessageTool]] = None,
-        credentials: Optional[dict] = None,
-        callbacks: Optional[dict] = None,
+            self,
+            messages: list[PromptMessage],
+            tools: Optional[list[PromptMessageTool]] = None,
+            credentials: Optional[dict] = None,
+            callbacks: Optional[dict] = None,
     ) -> int:
         """
         Approximate num tokens with GPT2 tokenizer.
         """
         callbacks = callbacks or {}
         get_num_tokens_by_gpt2 = callbacks.get("get_num_tokens_by_gpt2")
-        
+
         tokens_per_message = 3
         tokens_per_name = 1
 
         num_tokens = 0
         messages_dict = [self._convert_prompt_message_to_dict(m, credentials) for m in messages]
-        
+
         for message in messages_dict:
             num_tokens += tokens_per_message
             for key, value in message.items():
@@ -801,9 +878,9 @@ class OpenAICompatibleProtocol(BaseProtocol):
         return num_tokens
 
     def _num_tokens_for_tools(
-        self, 
-        tools: list[PromptMessageTool],
-        callbacks: Optional[dict] = None,
+            self,
+            tools: list[PromptMessageTool],
+            callbacks: Optional[dict] = None,
     ) -> int:
         """
         Calculate num tokens for tool calling with tiktoken package.
@@ -813,16 +890,16 @@ class OpenAICompatibleProtocol(BaseProtocol):
         """
         callbacks = callbacks or {}
         get_num_tokens_by_gpt2 = callbacks.get("get_num_tokens_by_gpt2")
-        
+
         if not get_num_tokens_by_gpt2:
             return 0
-            
+
         num_tokens = 0
         for tool in tools:
             num_tokens += get_num_tokens_by_gpt2("type")
             num_tokens += get_num_tokens_by_gpt2("function")
             num_tokens += get_num_tokens_by_gpt2("function")
-            
+
             # calculate num tokens for function object
             num_tokens += get_num_tokens_by_gpt2("name")
             if hasattr(tool, "name"):
@@ -830,18 +907,18 @@ class OpenAICompatibleProtocol(BaseProtocol):
             num_tokens += get_num_tokens_by_gpt2("description")
             if hasattr(tool, "description"):
                 num_tokens += get_num_tokens_by_gpt2(tool.description)
-            
+
             if hasattr(tool, "parameters"):
                 parameters = tool.parameters
                 num_tokens += get_num_tokens_by_gpt2("parameters")
-                
+
                 if "title" in parameters:
                     num_tokens += get_num_tokens_by_gpt2("title")
                     num_tokens += get_num_tokens_by_gpt2(parameters.get("title"))
-                
+
                 num_tokens += get_num_tokens_by_gpt2("type")
                 num_tokens += get_num_tokens_by_gpt2(parameters.get("type"))
-                
+
                 if "properties" in parameters:
                     num_tokens += get_num_tokens_by_gpt2("properties")
                     for key, value in parameters.get("properties", {}).items():
@@ -855,7 +932,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
                             else:
                                 num_tokens += get_num_tokens_by_gpt2(field_key)
                                 num_tokens += get_num_tokens_by_gpt2(str(field_value))
-                
+
                 if "required" in parameters:
                     num_tokens += get_num_tokens_by_gpt2("required")
                     for required_field in parameters["required"]:
@@ -876,7 +953,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
             for response_tool_call in response_tool_calls:
                 if not response_tool_call.get("function"):
                     continue
-                    
+
                 function = AssistantPromptMessage.ToolCall.ToolCallFunction(
                     name=response_tool_call.get("function", {}).get("name", ""),
                     arguments=response_tool_call.get("function", {}).get("arguments", ""),
@@ -910,9 +987,9 @@ class OpenAICompatibleProtocol(BaseProtocol):
         return tool_call
 
     def _wrap_thinking_by_reasoning_content(
-        self, 
-        delta: dict, 
-        is_reasoning_started: bool
+            self,
+            delta: dict,
+            is_reasoning_started: bool
     ) -> tuple[str, bool]:
         """
         Wrap thinking content with <think> tags for reasoning models.
@@ -923,7 +1000,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
         """
         reasoning_content = delta.get("reasoning_content")
         content = delta.get("content", "")
-        
+
         if reasoning_content:
             if not is_reasoning_started:
                 # Start of reasoning
@@ -936,6 +1013,59 @@ class OpenAICompatibleProtocol(BaseProtocol):
             return f"</think>{content}", False
         else:
             return content or "", is_reasoning_started
+
+    def _filter_thinking_result(self, result: LLMResult) -> LLMResult:
+        """Filter thinking content from non-streaming result"""
+        if result.message and result.message.content:
+            content = result.message.content
+            if isinstance(content, str) and content.startswith("<think>"):
+                filtered_content = self._THINK_PATTERN.sub("", content, count=1)
+                if filtered_content != content:
+                    result.message.content = filtered_content
+        return result
+
+    def _filter_thinking_stream(self, stream: Generator) -> Generator:
+        """Filter thinking content from streaming result"""
+        buffer = ""
+        in_thinking = False
+        thinking_started = False
+
+        for chunk in stream:
+            if chunk.delta and chunk.delta.message and chunk.delta.message.content:
+                content = chunk.delta.message.content
+                buffer += content
+
+                # Detect start of thinking block
+                if not thinking_started and buffer.startswith("<think>"):
+                    in_thinking = True
+                    thinking_started = True
+                    # Don't continue here - check for end tag in same iteration
+
+                # Detect end of thinking block
+                if in_thinking and "</think>" in buffer:
+                    # Find the end of thinking block
+                    end_idx = buffer.find("</think>") + len("</think>")
+                    # Skip whitespace after </think>
+                    while end_idx < len(buffer) and buffer[end_idx].isspace():
+                        end_idx += 1
+                    # Remove thinking block and continue with remaining content
+                    buffer = buffer[end_idx:]
+                    in_thinking = False
+                    thinking_started = False
+                    # Yield remaining content if any
+                    if buffer:
+                        chunk.delta.message.content = buffer
+                        buffer = ""
+                        yield chunk
+                    continue
+
+                # If not in thinking block, yield content
+                if not in_thinking:
+                    yield chunk
+                    buffer = ""
+            else:
+                # Yield chunks without content as-is
+                yield chunk
 
 
 # Singleton instance for easy access
