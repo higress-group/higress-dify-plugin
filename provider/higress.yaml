@@ -99,6 +99,34 @@ model_credential_schema:
           label:
             en_US: Tool Call
             zh_Hans: 工具调用
+    - variable: agent_thought_support
+      show_on:
+        - variable: __model_type
+          value: llm
+        - variable: llm_usage_scenario
+          value: text_generation
+      label:
+        en_US: Thinking Mode Support
+        zh_Hans: 思考模式支持
+      type: select
+      required: false
+      default: not_supported
+      options:
+        - value: only_thinking_supported
+          label:
+            en_US: Only Thinking Mode
+            zh_Hans: 仅支持思考模式
+        - value: not_supported
+          label:
+            en_US: Only Non-Thinking Mode
+            zh_Hans: 仅支持非思考模式
+        - value: supported
+          label:
+            en_US: Both Modes
+            zh_Hans: 两种模式都支持
+      help:
+        en_US: Configure whether the model supports thinking mode, non-thinking mode, or both. This will control the availability of the thinking mode toggle.
+        zh_Hans: 配置模型是否支持思考模式、非思考模式或两者都支持。这将控制思考模式开关的可用性。
     - variable: image_model_protocol
       show_on:
         - variable: __model_type

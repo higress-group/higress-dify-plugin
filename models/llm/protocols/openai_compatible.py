@@ -270,10 +270,16 @@ class OpenAICompatibleProtocol(BaseProtocol):
     ) -> Union[LLMResult, Generator]:
 
         # thinking mode preprocess
+        agent_thought_support = credentials.get("agent_thought_support", "not_supported")
         enable_thinking_value = None
-        enable_thinking = model_parameters.pop("enable_thinking", None)
-        if enable_thinking is not None:
-            enable_thinking_value = bool(enable_thinking)
+        if agent_thought_support == "only_thinking_supported":
+            enable_thinking_value = True
+        elif agent_thought_support == "not_supported":
+            enable_thinking_value = False
+        else:
+            user_enable_thinking = model_parameters.pop("enable_thinking", None)
+            if user_enable_thinking is not None:
+                enable_thinking_value = bool(user_enable_thinking)
 
         if enable_thinking_value is not None:
             chat_template_kwargs = model_parameters.setdefault("chat_template_kwargs", {})
