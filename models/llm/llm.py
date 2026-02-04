@@ -194,8 +194,16 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                         use_template=DefaultParameterName.TEMPERATURE.value,
                         label=I18nObject(en_US="Temperature", zh_Hans="温度"),
                         help=I18nObject(
-                            en_US="Used to control the degree of randomness and diversity. Specifically, the temperature value controls the degree to which the probability distribution of each candidate word is smoothed when generating text. A higher temperature value will reduce the peak value of the probability distribution, allowing more low-probability words to be selected, and the generated results will be more diverse; while a lower temperature value will enhance the peak value of the probability distribution, making it easier for high-probability words to be selected, the generated results are more certain.",
-                            zh_Hans="用于控制随机性和多样性的程度。具体来说，temperature值控制了生成文本时对每个候选词的概率分布进行平滑的程度。较高的temperature值会降低概率分布的峰值，使得更多的低概率词被选择，生成结果更加多样化；而较低的temperature值则会增强概率分布的峰值，使得高概率词更容易被选择，生成结果更加确定。",
+                            en_US="Used to control the degree of randomness and diversity. Specifically, "
+                                  "the temperature value controls the degree to which the probability distribution of "
+                                  "each candidate word is smoothed when generating text. A higher temperature value "
+                                  "will reduce the peak value of the probability distribution, allowing more "
+                                  "low-probability words to be selected, and the generated results will be more "
+                                  "diverse; while a lower temperature value will enhance the peak value of the "
+                                  "probability distribution, making it easier for high-probability words to be "
+                                  "selected, the generated results are more certain.",
+                            zh_Hans="用于控制随机性和多样性的程度。具体来说，temperature值控制了生成文本时对每个候选词的概率分布进行平滑的程度。较高的temperature"
+                                    "值会降低概率分布的峰值，使得更多的低概率词被选择，生成结果更加多样化；而较低的temperature值则会增强概率分布的峰值，使得高概率词更容易被选择，生成结果更加确定。",
                         ),
                         type=ParameterType.FLOAT,
                         default=float(credentials.get("temperature", 0.7)),
@@ -208,14 +216,38 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                         use_template=DefaultParameterName.TOP_P.value,
                         label=I18nObject(en_US="Top P", zh_Hans="Top P"),
                         help=I18nObject(
-                            en_US="The probability threshold of the kernel sampling method during the generation process. For example, when the value is 0.8, only the smallest set of the most likely tokens with a sum of probabilities greater than or equal to 0.8 is retained as the candidate set. The value range is (0,1.0). The larger the value, the higher the randomness generated; the lower the value, the higher the certainty generated.",
-                            zh_Hans="生成过程中核采样方法概率阈值，例如，取值为0.8时，仅保留概率加起来大于等于0.8的最可能token的最小集合作为候选集。取值范围为（0,1.0)，取值越大，生成的随机性越高；取值越低，生成的确定性越高。",
+                            en_US="The probability threshold of the kernel sampling method during the generation "
+                                  "process. For example, when the value is 0.8, only the smallest set of the most "
+                                  "likely tokens with a sum of probabilities greater than or equal to 0.8 is retained "
+                                  "as the candidate set. The value range is (0,1.0). The larger the value, "
+                                  "the higher the randomness generated; the lower the value, the higher the certainty "
+                                  "generated.",
+                            zh_Hans="生成过程中核采样方法概率阈值，例如，取值为0.8时，仅保留概率加起来大于等于0.8的最可能token的最小集合作为候选集。取值范围为（0,"
+                                    "1.0)，取值越大，生成的随机性越高；取值越低，生成的确定性越高。",
                         ),
                         type=ParameterType.FLOAT,
                         default=float(credentials.get("top_p", 0.8)),
-                        min=0.1,
-                        max=0.9,
+                        min=0.0,
+                        max=1.0,
                         precision=2,
+                    ),
+                    ParameterRule(
+                        name=DefaultParameterName.TOP_K.value,
+                        use_template=DefaultParameterName.TOP_K.value,
+                        label=I18nObject(en_US="Top k", zh_Hans="取样数量"),
+                        help=I18nObject(
+                            en_US="The size of the sample candidate set when generated. For example, when the value "
+                                  "is 50,"
+                                  "only the 50 highest-scoring tokens in a single generation form a randomly sampled "
+                                  "candidate set. The larger the value, the higher the randomness generated; the "
+                                  "smaller"
+                                  "the value, the higher the certainty generated.",
+                            zh_Hans="生成时，采样候选集的大小。例如，取值为50时，仅将单次生成中得分最高的50个token组成随机采样的候选集。取值越大，生成的随机性越高；取值越小，生成的确定性越高。",
+                        ),
+                        type=ParameterType.INT,
+                        default=int(credentials.get("top_k", 50)),
+                        min=0,
+                        max=99,
                     ),
                     ParameterRule(
                         name=DefaultParameterName.FREQUENCY_PENALTY.value,
@@ -247,8 +279,13 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                         name="seed",
                         label=I18nObject(en_US="Random seed", zh_Hans="随机种子"),
                         help=I18nObject(
-                            en_US="The random number seed used when generating, the user controls the randomness of the content generated by the model. Supports unsigned 64-bit integers, default value is 1234. When using seed, the model will try its best to generate the same or similar results, but there is currently no guarantee that the results will be exactly the same every time.",
-                            zh_Hans="生成时使用的随机数种子，用户控制模型生成内容的随机性。支持无符号64位整数，默认值为 1234。在使用seed时，模型将尽可能生成相同或相似的结果，但目前不保证每次生成的结果完全相同。",
+                            en_US="The random number seed used when generating, the user controls the randomness of "
+                                  "the content generated by the model. Supports unsigned 64-bit integers, "
+                                  "default value is 1234. When using seed, the model will try its best to generate "
+                                  "the same or similar results, but there is currently no guarantee that the results "
+                                  "will be exactly the same every time.",
+                            zh_Hans="生成时使用的随机数种子，用户控制模型生成内容的随机性。支持无符号64位整数，默认值为 "
+                                    "1234。在使用seed时，模型将尽可能生成相同或相似的结果，但目前不保证每次生成的结果完全相同。",
                         ),
                         type=ParameterType.INT,
                         default=int(credentials.get("seed", 1234)),
