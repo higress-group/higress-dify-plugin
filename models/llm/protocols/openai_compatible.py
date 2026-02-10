@@ -295,7 +295,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
         with suppress(Exception):
             self._drop_analyze_channel(prompt_messages)
 
-        result = self._generate(model, credentials, prompt_messages, model_parameters, tools, stop, stream, user)
+        result = self._generate(model, credentials, prompt_messages, model_parameters, tools, stop, stream, user, callbacks)
 
         if enable_thinking_value is False:
             if stream:
