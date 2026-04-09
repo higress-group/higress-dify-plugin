@@ -360,6 +360,8 @@ class OpenAICompatibleProtocol(BaseProtocol):
         elif "json_schema" in model_parameters:
             del model_parameters["json_schema"]
 
+        enable_web_search = model_parameters.pop("enable_web_search", None)
+
         # Use gateway_model_name if provided, otherwise use the original model name
         request_model = credentials.get("gateway_model_name") or model
 
@@ -375,6 +377,8 @@ class OpenAICompatibleProtocol(BaseProtocol):
         if completion_type is LLMMode.CHAT:
             endpoint_url = build_endpoint_url(credentials, self.CHAT_COMPLETIONS_PATH)
             data["messages"] = [self._convert_prompt_message_to_dict(m, credentials) for m in prompt_messages]
+            if enable_web_search:
+                data["web_search_options"] = {}
         elif completion_type is LLMMode.COMPLETION:
             endpoint_url = build_endpoint_url(credentials, self.COMPLETIONS_PATH)
             data["prompt"] = prompt_messages[0].content
