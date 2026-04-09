@@ -178,6 +178,9 @@ cython_debug/
 # Windows
 Thumbs.db
 
+# Local Dify CLI binary (e.g. downloaded for packaging); not part of the plugin
+.dify-tool/
+
 # Dify plugin packages
 #  To prevent packaging repetitively
 *.difypkg

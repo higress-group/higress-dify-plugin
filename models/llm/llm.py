@@ -387,6 +387,22 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
                     )
                 )
 
+            # Text generation: optional gateway web search (web_search_options in request body)
+            if credentials.get("llm_usage_scenario", "text_generation") == "text_generation":
+                entity.parameter_rules.append(
+                    ParameterRule(
+                        name="enable_web_search",
+                        label=I18nObject(en_US="Web search", zh_Hans="联网搜索"),
+                        help=I18nObject(
+                            en_US="When enabled, activates the AI Gateway web search feature (web search must be "
+                                  "enabled on the gateway, with automatic enablement kept off).",
+                            zh_Hans="开启后，会激活 AI 网关的联网搜索功能（需开启联网搜索并且保持自动启用关闭）。",
+                        ),
+                        type=ParameterType.BOOLEAN,
+                        required=False,
+                    )
+                )
+
             return entity
 
         except Exception as e:
