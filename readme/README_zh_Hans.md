@@ -1,7 +1,7 @@
 ## Dify Higress 模型插件
 
 **Author:** higress
-**Version:** 0.0.3
+**Version:** 0.0.4
 **Type:** model
 
 ### 介绍
