@@ -31,11 +31,25 @@ class DashScopeRerankProtocol(BaseRerankProtocol):
 
     PROTOCOL_NAME = "dashscope_rerank"
 
-    # API path for DashScope rerank
-    RERANK_PATH = "api/v1/services/rerank/text-rerank/text-rerank"
+    # API paths for different rerank models
+    DASHSCOPE_RERANK_PATH = "api/v1/services/rerank/text-rerank/text-rerank"
+    OPENAI_COMPATIBLE_RERANK_PATH = "v1/reranks"
 
     def get_protocol_name(self) -> str:
         return self.PROTOCOL_NAME
+
+    def _get_rerank_path(self, model: str) -> str:
+        """
+        Get the appropriate API path based on model type.
+
+        :param model: Model name
+        :return: API path
+        """
+        # qwen3-rerank uses OpenAI-compatible path
+        if model == "qwen3-rerank":
+            return self.OPENAI_COMPATIBLE_RERANK_PATH
+        # Other models use DashScope native path
+        return self.DASHSCOPE_RERANK_PATH
 
     def validate_credentials(self, model: str, credentials: dict) -> None:
         """
@@ -87,8 +101,11 @@ class DashScopeRerankProtocol(BaseRerankProtocol):
         if len(docs) == 0:
             return RerankResult(model=model, docs=[])
 
-        endpoint_url = build_endpoint_url(credentials, self.RERANK_PATH)
         request_model = credentials.get("gateway_model_name") or "gte-rerank-v2"
+
+        # Get the appropriate API path based on model type
+        api_path = self._get_rerank_path(request_model)
+        endpoint_url = build_endpoint_url(credentials, api_path)
 
         headers = {
             "Content-Type": "application/json",
@@ -96,9 +113,10 @@ class DashScopeRerankProtocol(BaseRerankProtocol):
         }
 
         # Build request body based on model type
-        # qwen3-rerank uses flat structure, other models use nested input/parameters
+        # qwen3-rerank uses flat structure with OpenAI-compatible API
+        # Other models use nested input/parameters structure with DashScope native API
         if request_model == "qwen3-rerank":
-            # qwen3-rerank: flat structure
+            # qwen3-rerank: OpenAI-compatible flat structure
             data = {
                 "model": request_model,
                 "query": query,
@@ -107,7 +125,7 @@ class DashScopeRerankProtocol(BaseRerankProtocol):
             if top_n is not None:
                 data["top_n"] = top_n
         else:
-            # gte-rerank-v2 and others: nested structure
+            # gte-rerank-v2 and others: DashScope native nested structure
             data = {
                 "model": request_model,
                 "input": {
@@ -159,8 +177,14 @@ class DashScopeRerankProtocol(BaseRerankProtocol):
                 )
 
             # Parse successful response
-            output = response_data.get("output", {})
-            results = output.get("results", [])
+            # qwen3-rerank returns results directly, other models wrap in "output"
+            if request_model == "qwen3-rerank":
+                # OpenAI-compatible response: results at top level
+                results = response_data.get("results", [])
+            else:
+                # DashScope native response: results in output.results
+                output = response_data.get("output", {})
+                results = output.get("results", [])
 
             rerank_documents = []
             for result in results:
@@ -168,11 +192,18 @@ class DashScopeRerankProtocol(BaseRerankProtocol):
                 relevance_score = result.get("relevance_score", 0.0)
 
                 # Get document text from response or fallback to original docs
-                document_obj = result.get("document", {})
-                if document_obj and isinstance(document_obj, dict):
-                    text = document_obj.get("text", docs[index] if index < len(docs) else "")
-                else:
+                # qwen3-rerank doesn't return document text in response
+                # gte-rerank-v2 returns document object with text
+                if request_model == "qwen3-rerank":
+                    # For qwen3-rerank, always use original docs
                     text = docs[index] if index < len(docs) else ""
+                else:
+                    # For gte-rerank-v2, try to get text from response
+                    document_obj = result.get("document", {})
+                    if document_obj and isinstance(document_obj, dict):
+                        text = document_obj.get("text", docs[index] if index < len(docs) else "")
+                    else:
+                        text = docs[index] if index < len(docs) else ""
 
                 # Apply score threshold filter
                 if score_threshold is None or relevance_score >= score_threshold:
