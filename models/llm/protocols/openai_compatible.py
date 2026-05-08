@@ -281,7 +281,8 @@ class OpenAICompatibleProtocol(BaseProtocol):
             if user_enable_thinking is not None:
                 enable_thinking_value = bool(user_enable_thinking)
 
-        if enable_thinking_value is not None:
+        # only when model support thinking, gen param about thinking
+        if enable_thinking_value is not None and agent_thought_support in ["supported", "only_thinking_supported"]:
             chat_template_kwargs = model_parameters.setdefault("chat_template_kwargs", {})
             # Support vLLM/SGLang format (chat_template_kwargs)
             chat_template_kwargs["enable_thinking"] = enable_thinking_value
