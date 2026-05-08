@@ -1,4 +1,4 @@
-version: 0.0.4
+version: 0.0.5
 type: plugin
 author: "higress"
 name: higress
@@ -31,7 +31,7 @@ plugins:
   models:
     - provider/higress.yaml
 meta:
-  version: 0.0.4
+  version: 0.0.5
   arch:
     - amd64
     - arm64
