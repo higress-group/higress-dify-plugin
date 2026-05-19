@@ -169,13 +169,12 @@ class HigressLargeLanguageModel(_CommonHigress, LargeLanguageModel):
             stream_function_calling = credentials.get("stream_function_calling", "supported")
             if stream_function_calling == "supported":
                 features.append(ModelFeature.STREAM_TOOL_CALL)
-            # multimodal support (image, video, audio, document)
+            # multimodal support (image, video, audio)
             if credentials.get("multimodal_support", "not_support") == "support":
                 features.extend([
                     ModelFeature.VISION,
                     ModelFeature.VIDEO,
                     ModelFeature.AUDIO,
-                    ModelFeature.DOCUMENT,
                 ])
 
             # Get mode with safe default

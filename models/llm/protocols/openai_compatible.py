@@ -18,7 +18,6 @@ from dify_plugin.entities.model.llm import LLMMode, LLMResult, LLMResultChunk, L
 from dify_plugin.entities.model.message import (
     AssistantPromptMessage,
     AudioPromptMessageContent,
-    DocumentPromptMessageContent,
     ImagePromptMessageContent,
     PromptMessage,
     PromptMessageContent,
@@ -808,17 +807,6 @@ class OpenAICompatibleProtocol(BaseProtocol):
                                     "image_url": {"url": message_content.data},
                                 }
                             )
-                    elif message_content.type == PromptMessageContentType.DOCUMENT:
-                        message_content = cast(DocumentPromptMessageContent, message_content)
-                        sub_messages.append(
-                            {
-                                "type": "file",
-                                "file": {
-                                    "file_data": message_content.data,
-                                    "filename": getattr(message_content, "filename", None) or "document",
-                                },
-                            }
-                        )
                 message_dict = {"role": "user", "content": sub_messages}
         elif isinstance(message, AssistantPromptMessage):
             message = cast(AssistantPromptMessage, message)
