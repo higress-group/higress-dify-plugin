@@ -17,6 +17,8 @@ from pydantic import TypeAdapter, ValidationError
 from dify_plugin.entities.model.llm import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
 from dify_plugin.entities.model.message import (
     AssistantPromptMessage,
+    AudioPromptMessageContent,
+    DocumentPromptMessageContent,
     ImagePromptMessageContent,
     PromptMessage,
     PromptMessageContent,
@@ -26,6 +28,7 @@ from dify_plugin.entities.model.message import (
     SystemPromptMessage,
     ToolPromptMessage,
     UserPromptMessage,
+    VideoPromptMessageContent,
 )
 from dify_plugin.errors.model import CredentialsValidateFailedError, InvokeError
 
@@ -751,6 +754,33 @@ class OpenAICompatibleProtocol(BaseProtocol):
                             },
                         }
                         sub_messages.append(sub_message_dict)
+                    elif message_content.type == PromptMessageContentType.VIDEO:
+                        message_content = cast(VideoPromptMessageContent, message_content)
+                        sub_messages.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": message_content.data},
+                            }
+                        )
+                    elif message_content.type == PromptMessageContentType.AUDIO:
+                        message_content = cast(AudioPromptMessageContent, message_content)
+                        sub_messages.append(
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": message_content.data},
+                            }
+                        )
+                    elif message_content.type == PromptMessageContentType.DOCUMENT:
+                        message_content = cast(DocumentPromptMessageContent, message_content)
+                        sub_messages.append(
+                            {
+                                "type": "file",
+                                "file": {
+                                    "file_data": message_content.data,
+                                    "filename": getattr(message_content, "filename", None) or "document",
+                                },
+                            }
+                        )
                 message_dict = {"role": "user", "content": sub_messages}
         elif isinstance(message, AssistantPromptMessage):
             message = cast(AssistantPromptMessage, message)

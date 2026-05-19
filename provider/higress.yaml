@@ -127,6 +127,32 @@ model_credential_schema:
       help:
         en_US: Configure whether the model supports thinking mode, non-thinking mode, or both. This will control the availability of the thinking mode toggle.
         zh_Hans: 配置模型是否支持思考模式、非思考模式或两者都支持。这将控制思考模式开关的可用性。
+    - variable: multimodal_support
+      show_on:
+        - variable: __model_type
+          value: llm
+        - variable: llm_usage_scenario
+          value: text_generation
+        - variable: text_model_protocol
+          value: openai_compatible
+      label:
+        zh_Hans: 多模态支持
+        en_US: Multimodal Support
+      type: select
+      required: false
+      default: not_support
+      help:
+        en_US: Whether the model supports multimodal input (image, video, audio, document). Enable this for vision-language models, e.g. qwen-vl series.
+        zh_Hans: 模型是否支持多模态输入（图像、视频、音频、文档）。例如 qwen-vl 系列模型可开启此选项。
+      options:
+        - value: support
+          label:
+            en_US: Support
+            zh_Hans: 支持
+        - value: not_support
+          label:
+            en_US: Not Support
+            zh_Hans: 不支持
     - variable: image_model_protocol
       show_on:
         - variable: __model_type
