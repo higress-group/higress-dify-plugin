@@ -17,6 +17,8 @@ from pydantic import TypeAdapter, ValidationError
 from dify_plugin.entities.model.llm import LLMMode, LLMResult, LLMResultChunk, LLMResultChunkDelta
 from dify_plugin.entities.model.message import (
     AssistantPromptMessage,
+    AudioPromptMessageContent,
+    DocumentPromptMessageContent,
     ImagePromptMessageContent,
     PromptMessage,
     PromptMessageContent,
@@ -26,6 +28,7 @@ from dify_plugin.entities.model.message import (
     SystemPromptMessage,
     ToolPromptMessage,
     UserPromptMessage,
+    VideoPromptMessageContent,
 )
 from dify_plugin.errors.model import CredentialsValidateFailedError, InvokeError
 
@@ -113,8 +116,27 @@ class OpenAICompatibleProtocol(BaseProtocol):
     CHAT_COMPLETIONS_PATH = "v1/chat/completions"
     COMPLETIONS_PATH = "v1/completions"
 
+    _DASHSCOPE_MODEL_PREFIXES = ("qwen", "qvq", "qwq")
+
     def get_protocol_name(self) -> str:
         return self.PROTOCOL_NAME
+
+    @staticmethod
+    def _is_dashscope_model(credentials: dict) -> bool:
+        model_name = (credentials.get("gateway_model_name") or "").lower()
+        return model_name.startswith(OpenAICompatibleProtocol._DASHSCOPE_MODEL_PREFIXES)
+
+    @staticmethod
+    def _guess_audio_format(data: str) -> str:
+        if data.startswith("data:"):
+            mime = data.split(";")[0].split(":")[1] if ";" in data else ""
+            fmt = mime.split("/")[-1] if "/" in mime else ""
+            if fmt:
+                return fmt
+        for ext in ("wav", "mp3", "aac", "flac", "ogg", "amr"):
+            if ext in data.lower():
+                return ext
+        return "wav"
 
     def validate_credentials(self, model: str, credentials: dict) -> None:
         """
@@ -751,6 +773,52 @@ class OpenAICompatibleProtocol(BaseProtocol):
                             },
                         }
                         sub_messages.append(sub_message_dict)
+                    elif message_content.type == PromptMessageContentType.VIDEO:
+                        message_content = cast(VideoPromptMessageContent, message_content)
+                        if self._is_dashscope_model(credentials):
+                            sub_messages.append(
+                                {
+                                    "type": "video_url",
+                                    "video_url": {"url": message_content.data},
+                                }
+                            )
+                        else:
+                            sub_messages.append(
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": message_content.data},
+                                }
+                            )
+                    elif message_content.type == PromptMessageContentType.AUDIO:
+                        message_content = cast(AudioPromptMessageContent, message_content)
+                        if self._is_dashscope_model(credentials):
+                            sub_messages.append(
+                                {
+                                    "type": "input_audio",
+                                    "input_audio": {
+                                        "data": message_content.data,
+                                        "format": self._guess_audio_format(message_content.data),
+                                    },
+                                }
+                            )
+                        else:
+                            sub_messages.append(
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": message_content.data},
+                                }
+                            )
+                    elif message_content.type == PromptMessageContentType.DOCUMENT:
+                        message_content = cast(DocumentPromptMessageContent, message_content)
+                        sub_messages.append(
+                            {
+                                "type": "file",
+                                "file": {
+                                    "file_data": message_content.data,
+                                    "filename": getattr(message_content, "name", "document"),
+                                },
+                            }
+                        )
                 message_dict = {"role": "user", "content": sub_messages}
         elif isinstance(message, AssistantPromptMessage):
             message = cast(AssistantPromptMessage, message)
