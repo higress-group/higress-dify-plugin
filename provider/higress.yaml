@@ -142,8 +142,8 @@ model_credential_schema:
       required: false
       default: not_support
       help:
-        en_US: Whether the model supports multimodal input (image, video, audio). Enable this for vision-language models, e.g. qwen-vl series.
-        zh_Hans: 模型是否支持多模态输入（图像、视频、音频）。例如 qwen-vl 系列模型可开启此选项。
+        en_US: Whether the model supports multimodal input (image, video, audio, document). Enable this for vision-language models, e.g. qwen-vl series.
+        zh_Hans: 模型是否支持多模态输入（图像、视频、音频、文档）。例如 qwen-vl 系列模型可开启此选项。
       options:
         - value: support
           label:
