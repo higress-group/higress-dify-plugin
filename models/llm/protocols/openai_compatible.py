@@ -116,7 +116,7 @@ class OpenAICompatibleProtocol(BaseProtocol):
     CHAT_COMPLETIONS_PATH = "v1/chat/completions"
     COMPLETIONS_PATH = "v1/completions"
 
-    _DASHSCOPE_MODEL_PREFIXES = ("qwen", "qvq", "qwq", "kimi")
+    _DASHSCOPE_MODEL_PREFIXES = ("qwen", "qvq", "qwq")
 
     def get_protocol_name(self) -> str:
         return self.PROTOCOL_NAME
