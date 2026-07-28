@@ -1077,7 +1077,8 @@ class OpenAICompatibleProtocol(BaseProtocol):
         :param is_reasoning_started: Whether reasoning has started
         :return: Tuple of (processed content, updated is_reasoning_started flag)
         """
-        reasoning_content = delta.get("reasoning_content")
+        # Support both legacy and newer OpenAI-compatible reasoning fields.
+        reasoning_content = delta.get("reasoning_content") or delta.get("reasoning")
         content = delta.get("content", "")
 
         if reasoning_content:
