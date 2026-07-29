@@ -1,7 +1,7 @@
 ## Dify Higress Model Plugin
 
 **Author:** higress
-**Version:** 0.0.6
+**Version:** 0.0.7
 **Type:** model
 
 ### Introduction
@@ -17,7 +17,7 @@ This plugin supports both the **open-source self-host Higress** and the commerci
 - **Text Embedding**: OpenAI-compatible protocol
 - **Text Reranking**: Alibaba Cloud DashScope rerank protocol
 - **Function Calling / Tool Call**: Configurable function calling or tool calling support
-- **Thinking Mode**: Supports reasoning models (e.g., Qwen3) with configurable thinking mode (on/off/both)
+- **Thinking Mode**: Supports reasoning models (e.g., Qwen3) with configurable thinking mode (on/off/both), and handles streaming reasoning returned via either `reasoning_content` or `reasoning`
 - **Reasoning Effort**: Constrains the effort level for reasoning models (low/medium/high)
 - **Multimodal Input**: Supports image, video, audio, and document input for vision-language models (e.g., Qwen-VL series)
 - **Web Search**: Activates AI Gateway web search feature for text generation (requires gateway-side configuration)
