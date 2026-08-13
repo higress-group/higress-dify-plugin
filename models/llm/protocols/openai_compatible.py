@@ -303,16 +303,19 @@ class OpenAICompatibleProtocol(BaseProtocol):
             if user_enable_thinking is not None:
                 enable_thinking_value = bool(user_enable_thinking)
 
-        # only when model support thinking, gen param about thinking
-        if enable_thinking_value is not None and agent_thought_support in ["supported", "only_thinking_supported"]:
-            chat_template_kwargs = model_parameters.setdefault("chat_template_kwargs", {})
-            # Support vLLM/SGLang format (chat_template_kwargs)
-            chat_template_kwargs["enable_thinking"] = enable_thinking_value
-            chat_template_kwargs["thinking"] = enable_thinking_value
-
-            # Support top-level `enable_thinking` parameter
-            # This allows compatibility API format: {"enable_thinking": False/True}
+        # propagate enable_thinking to model parameters.
+        # Always set top-level `enable_thinking` when we have an explicit value so
+        # callers / gateway can observe it (e.g. to explicitly disable thinking).
+        # Only add chat_template_kwargs/thinking when the model actually supports reasoning.
+        if enable_thinking_value is not None:
+            # Support top-level `enable_thinking` parameter so callers/models that respect it receive explicit False/True.
             model_parameters["enable_thinking"] = enable_thinking_value
+        
+            if agent_thought_support in ["supported", "only_thinking_supported"]:
+                chat_template_kwargs = model_parameters.setdefault("chat_template_kwargs", {})
+                # Support vLLM/SGLang format (chat_template_kwargs)
+                chat_template_kwargs["enable_thinking"] = enable_thinking_value
+                chat_template_kwargs["thinking"] = enable_thinking_value
 
         # Remove thinking content from assistant messages for better performance.
         with suppress(Exception):
